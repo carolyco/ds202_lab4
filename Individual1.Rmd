@@ -1,0 +1,208 @@
+---
+title: "Individual1"
+author: "Caroly Coronado- Vargas"
+date: "10/25/2021"
+output: html_document
+---
+## Part one: Cleaning Data ##
+
+```{r}
+library(dplyr)
+library(tidyverse)
+library(readxl)
+defense <- read_excel('../Lab4/cyclonesFootball2020.xlsx', sheet='Defensive')
+
+offensive <- read_excel('../Lab4/cyclonesFootball2020.xlsx', sheet='Offensive')
+
+biography <- read_excel('../Lab4/cyclonesFootball2020.xlsx', sheet='Biography')
+
+str(defense)
+str(offensive)
+str(biography)
+```
+
+### 1 ###
+
+```{r}
+defClean <- defense %>% 
+  rename(Opponent = Opponent_Opponent) %>% 
+  mutate(Opponent = factor(Opponent,                       as.character(unique(Opponent)))) %>% 
+  
+  rename(Player = Name) %>% 
+  mutate(Player = factor(Player,                       as.character(unique(Player))))
+
+str(defClean)
+
+offClean <- offensive %>% 
+  rename(Opponent = Opponent_Opponent) %>% 
+  mutate(Opponent = factor(Opponent,                       as.character(unique(Opponent)))) %>% 
+  
+  rename(Player = Name) %>% 
+  mutate(Player = factor(Player,                       as.character(unique(Player))))
+
+str(offClean)
+```
+
+### 2 ###
+
+```{r}
+offClean <- offClean %>%
+  dplyr::mutate(across(Receiving_REC:Passing_INT, as.numeric))
+
+str(offClean)
+
+defClean <- defClean %>%
+  dplyr::mutate(across(Tackles_Solo:Pass_PB, as.numeric))
+
+str(defClean)
+```
+## 3 ##
+
+```{r}
+str(biography)
+
+bioClean<- biography %>%
+  separate(Height,c('Height.ft', 'inches'), sep = '-', convert = TRUE, remove = TRUE) %>%
+  mutate(Height.ft = 12*Height.ft + inches) %>%
+  select(-inches)
+
+str(bioClean)
+```
+### 4 ###
+
+```{r}
+defClean<- defClean%>%
+  group_by(Player,Opponent)%>%
+  mutate(gameNum= row_number())
+  
+defClean
+
+offClean<- offClean%>%
+  group_by(Player,Opponent)%>%
+  mutate(gameNum= row_number()) 
+
+  
+offClean
+
+str(defClean)
+str(offClean)
+str(bioClean)
+
+```
+
+## Part Two: Tidying and Exploring ##
+
+### 1 ###
+
+```{r}
+library(reshape2)
+offClean
+
+offClean<- pivot_longer(offClean,Receiving_REC:Receiving_TD, names_to = 'StatType',values_to = 'Stat')
+
+```
+### 2 ###
+
+```{r}
+offClean
+g<- offClean%>%
+  group_by(StatType,Player)%>%
+  summarize(SumStat=sum(Stat))
+
+g
+
+```
+### 3 ###
+
+*We can see that most players have higher Receiving Yards followed by Recieving Touch Downs.*
+
+```{r}
+library(ggplot2)
+
+bp<- ggplot(g, aes(x=StatType, y=SumStat), group=StatType)+geom_boxplot(aes(fill=StatType))+ facet_wrap(~Player)
+
+bp
+```
+
+### 4 ###
+
+*ISU had better offense against Oklahoma (first game) than Oregon since they had larger number of receiving yards.*
+
+```{r}
+offClean
+Opps<-c("Oregon","Oklahoma")
+
+offClean1<-offClean %>% 
+  filter(Opponent %in% Opps)%>%
+  filter(gameNum==1)%>%
+  pivot_wider(names_from =StatType ,values_from =Stat)%>%
+  group_by(Opponent)%>%
+  summarize(Rec_YDS=sum(Receiving_YDS,na.rm=TRUE))
+  
+offClean1
+
+ggplot(offClean1, aes(x=Rec_YDS, y=Opponent))+ geom_point()
+```
+
+### 5 ###
+
+```{r}
+bioClean
+
+bioClean<- bioClean%>%
+  separate(Hometown, c('City', 'State'), sep=',')
+bioClean
+```
+
+### 6 ###
+
+```{r}
+NumState<-bioClean%>%
+  group_by(State)%>%
+  summarise(count_State=n())
+NumState
+```
+
+### 7 ###
+
+*Based on our graphs, When QB Brock Purdy has higher Passing Yards, the team has higher Rushing Touch Downs, thus contributing to the teams overall performance in a positive way, Looking at the defense does not make sense in our data since Purdy plays offense. looking at our graph we can see no correltaion*
+
+```{r}
+#Offense
+
+BrockOff<-offClean%>%
+  filter(Player=="Purdy, Brock")%>%
+  group_by(Opponent)%>%
+  summarize(Pass_Yards=sum(Passing_YDS))
+BrockOff
+
+TeamOff<-offClean%>%
+  group_by(Opponent)%>%
+  summarize(Rushing_Td=sum(Rushing_TD,na.rm = TRUE))
+TeamOff
+
+df<-full_join(BrockOff, TeamOff)
+df
+
+ggplot(df, aes(x=Pass_Yards, y=Rushing_Td))+ geom_point()
+
+
+#Defense
+defClean
+BrockDef<-defClean%>%
+  filter(Player=="Purdy, Brock")%>%
+  group_by(Opponent)%>%
+  summarize(Tackles_solo=sum(Tackles_Solo,na.rm = TRUE))
+BrockDef
+
+TeamDef<-defClean%>%
+  group_by(Opponent)%>%
+  summarize(tackles_TFL=sum(Tackles_TFL,na.rm = TRUE))
+TeamDef
+
+df2<-full_join(BrockDef, TeamDef)
+df2
+
+ggplot(df2, aes(x=Tackles_solo, y=tackles_TFL))+ geom_point()
+```
+
